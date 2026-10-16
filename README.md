@@ -62,12 +62,15 @@ The `entra` checks (`AZURE_ENT_*`) read **Entra ID through Microsoft Graph, not 
 | Permission | Used for |
 | --- | --- |
 | `Application.Read.All` | service principals, app registrations (`AZURE_ENT_001`, `AZURE_ENT_004`) |
-| `User.Read.All` | list users (`AZURE_ENT_002`) |
+| `User.Read.All`, `GroupMember.Read.All` | resolve users and expand assigned groups (`AZURE_ENT_002`, `AZURE_ENT_003`) |
 | `AuditLog.Read.All` | MFA registration report (`AZURE_ENT_002`, requires Entra ID P1 or P2) |
+| `UserAuthenticationMethod.Read.All` | per-user MFA methods, fallback without P1 (`AZURE_ENT_002`) |
 | `Domain.Read.All` | verified domains (`AZURE_ENT_003`) |
 | `Directory.Read.All` | lockout settings (`AZURE_ENT_003`) |
 
-Entra data is **tenant-wide**, not per subscription: if several audited subscriptions share a tenant, the `AZURE_ENT_*` results repeat for each of them. Run them once by excluding `AZURE_ENT_*` from the other runs.
+**IAM checks are scoped to the subscription.** `AZURE_ENT_*` only evaluate the identities holding a role assignment that applies to the audited subscription (assigned on it, above it, or on a resource group or resource inside it): users directly assigned, members of assigned groups (expanded), and assigned service principals. They never sweep the whole tenant. Guests are excluded from the MFA check, since their home tenant enforces MFA.
+
+**MFA** (`AZURE_ENT_002`) is read two ways, tried in order: the per-user registration report (Entra ID P1+, `AuditLog.Read.All`), then, for tenants without P1, each user's authentication methods (`UserAuthenticationMethod.Read.All`, no premium licence). The `az login` token of the Azure CLI does **not** carry `UserAuthenticationMethod.Read.All`, even for a Global Administrator, so on a non-P1 tenant this check needs an app registration with that permission (option B). If neither source is readable the check fails with `Unable to evaluate`.
 
 Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 403`; the ARM-only categories are unaffected.
 
@@ -96,10 +99,10 @@ Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 4
 | `AZURE_COS_002` | Cosmos DB continuous backup (PITR) | Dynamodb have continuous backup with PITR |
 | `AZURE_CDN_001` | CDN endpoints / Front Door routes HTTPS only | Cloudfronts only allow HTTPS |
 | `AZURE_RBAC_001` | No identity can write role assignments at subscription scope or above | IAM User can't elevate rights |
-| `AZURE_ENT_001` | Service principals have no interactive sign-in credentials | IAM Non-human users don't have console password |
-| `AZURE_ENT_002` | Enabled member users have MFA registered | IAM Users have 2FA activated |
-| `AZURE_ENT_003` | Password expiry ≤ 365 days (managed domains) and smart lockout ≤ 10 | IAM password policy must be defined and enforced |
-| `AZURE_ENT_004` | Active app secrets / certificates < 90 days old | IAM access key younger than 90 days |
+| `AZURE_ENT_001` | Service principals with access to the subscription have no interactive sign-in credentials | IAM Non-human users don't have console password |
+| `AZURE_ENT_002` | Enabled member users with access to the subscription have MFA (guests excluded) | IAM Users have 2FA activated |
+| `AZURE_ENT_003` | Password expiry ≤ 365 days on the users' managed domains, and smart lockout ≤ 10 | IAM password policy must be defined and enforced |
+| `AZURE_ENT_004` | Active secrets / certificates < 90 days old, for apps with access to the subscription | IAM access key younger than 90 days |
 
 ### Design decisions worth knowing
 

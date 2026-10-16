@@ -15,14 +15,15 @@ func RunChecks(wg *sync.WaitGroup, s internal.Session, c *commons.Config, queue 
 	checkConfig.Init(c)
 	var checks []commons.Check
 
-	spList, err := GetServicePrincipals(s)
-	sps := internal.Fetch("Entra service principals", spList, err)
-	userList, err := GetUsers(s)
-	users := internal.Fetch("Entra users and MFA registrations", userList, err)
-	policyList, err := GetPasswordPolicy(s)
-	policy := internal.Fetch("Entra password policy", policyList, err)
-	appList, err := GetApplications(s)
-	apps := internal.Fetch("Entra app registrations", appList, err)
+	// Scope: only the identities with a role assignment on the subscription.
+	assigneeList, err := internal.GetAssignees(s)
+	assignees := internal.Fetch("subscription role assignees", assigneeList, err)
+
+	sps := derive(assignees, "Entra service principals", func(a []internal.Assignee) ([]ServicePrincipal, error) { return GetServicePrincipals(s, a) })
+	members := derive(assignees, "Entra users", func(a []internal.Assignee) ([]User, error) { return GetMembers(s, a) })
+	users := derive(members, "Entra users MFA status", func(u []User) ([]User, error) { return GetMFA(s, u) })
+	policy := derive(members, "Entra password policy", func(u []User) ([]PasswordPolicy, error) { return GetPasswordPolicy(s, u) })
+	apps := derive(sps, "Entra app registrations", func(p []ServicePrincipal) ([]Application, error) { return GetApplications(s, p) })
 
 	go commons.CheckTest(checkConfig.Wg, c, NoInteractiveSignInID, checkIfNoInteractiveSignIn)(checkConfig, sps, NoInteractiveSignInID)
 	go commons.CheckTest(checkConfig.Wg, c, MFAID, checkIfMFA)(checkConfig, users, MFAID)
@@ -46,4 +47,14 @@ func RunChecks(wg *sync.WaitGroup, s internal.Session, c *commons.Config, queue 
 // checkCredentialAgeNow binds the real clock to the check so it fits commons.CheckTest.
 func checkCredentialAgeNow(checkConfig commons.CheckConfig, apps internal.Fetched[Application], testName string) {
 	checkIfCredentialsYoungerThan90Days(checkConfig, apps, testName, time.Now)
+}
+
+// derive fetches B from the result of a previous fetch, propagating its error so
+// a failure upstream is reported by every check that depends on it.
+func derive[A, B any](from internal.Fetched[A], what string, fn func([]A) ([]B, error)) internal.Fetched[B] {
+	if from.Err != nil {
+		return internal.Fetched[B]{Err: from.Err}
+	}
+	items, err := fn(from.Items)
+	return internal.Fetch(what, items, err)
 }

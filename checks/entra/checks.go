@@ -30,7 +30,7 @@ const MaxLockoutThreshold = 10
 // enterprise application configured for password-based SSO stores user
 // credentials that are replayed at sign-in. Managed identities have none.
 func checkIfNoInteractiveSignIn(checkConfig commons.CheckConfig, sps internal.Fetched[ServicePrincipal], testName string) {
-	check := internal.NewHDSCheck("Entra non-human identities don't have interactive sign-in credentials", "Check that service principals are not configured with password-based SSO", testName)
+	check := internal.NewHDSCheck("Entra non-human identities with access to the subscription don't have interactive sign-in credentials", "Check that service principals holding a role assignment on the subscription are not configured with password-based SSO", testName)
 	if sps.Failed(&check, "Entra service principals") {
 		checkConfig.Queue <- check
 		return
@@ -47,7 +47,7 @@ func checkIfNoInteractiveSignIn(checkConfig commons.CheckConfig, sps internal.Fe
 
 // AZURE_ENT_002 (≈ AWS "IAM Users have 2FA activated").
 func checkIfMFA(checkConfig commons.CheckConfig, users internal.Fetched[User], testName string) {
-	check := internal.NewHDSCheck("Entra users have MFA activated", "Check that every enabled member user is registered for multi-factor authentication", testName)
+	check := internal.NewHDSCheck("Entra users with access to the subscription have MFA activated", "Check that every enabled member user holding access to the subscription (directly or through a group) has multi-factor authentication. Guests are excluded: their home tenant enforces MFA", testName)
 	if users.Failed(&check, "Entra users and MFA registrations") {
 		checkConfig.Queue <- check
 		return
@@ -67,7 +67,7 @@ func checkIfMFA(checkConfig commons.CheckConfig, users internal.Fetched[User], t
 // domains need an expiration of at most MaxPasswordValidityDays, and any custom
 // smart-lockout threshold must be at most MaxLockoutThreshold.
 func checkIfPasswordPolicy(checkConfig commons.CheckConfig, policies internal.Fetched[PasswordPolicy], testName string) {
-	check := internal.NewHDSCheck("Entra password policy must be defined and enforced", fmt.Sprintf("Check that managed domains expire passwords within %d days and that smart lockout triggers after at most %d failures", MaxPasswordValidityDays, MaxLockoutThreshold), testName)
+	check := internal.NewHDSCheck("Entra password policy must be defined and enforced", fmt.Sprintf("Check that the domains of the subscription users: managed domains expire passwords within %d days and that smart lockout triggers after at most %d failures", MaxPasswordValidityDays, MaxLockoutThreshold), testName)
 	if policies.Failed(&check, "Entra password policy") {
 		checkConfig.Queue <- check
 		return
@@ -96,7 +96,7 @@ func checkIfPasswordPolicy(checkConfig commons.CheckConfig, policies internal.Fe
 // client secret / certificate of an app registration was created less than 90
 // days ago. Expired credentials are ignored, `now` is injected for the tests.
 func checkIfCredentialsYoungerThan90Days(checkConfig commons.CheckConfig, apps internal.Fetched[Application], testName string, now func() time.Time) {
-	check := internal.NewHDSCheck("Entra application secrets and certificates younger than 90 days", "Check that active client secrets and certificates of app registrations were created less than 90 days ago", testName)
+	check := internal.NewHDSCheck("Entra application secrets and certificates younger than 90 days", "Check that active client secrets and certificates of the app registrations with access to the subscription were created less than 90 days ago", testName)
 	if apps.Failed(&check, "Entra app registrations") {
 		checkConfig.Queue <- check
 		return

@@ -57,3 +57,34 @@ func TestGraphListSurfacesPermissionErrors(t *testing.T) {
 		t.Fatalf("expected a 403 error, got %v", err)
 	}
 }
+
+func TestGraphGetNotFoundAndTokenCache(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/gone") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		fmt.Fprint(w, `{"id":"x"}`)
+	}))
+	defer srv.Close()
+	GraphBaseURL = srv.URL
+	g := &Graph{Credential: countingCredential{&calls}, HTTP: srv.Client()}
+
+	if got, err := GraphGet[item](context.TODO(), g, "/users/x"); err != nil || got.ID != "x" {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if _, err := GraphGet[item](context.TODO(), g, "/users/gone"); !IsNotFound(err) {
+		t.Fatalf("expected a not-found error, got %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("token fetched %d times, want 1 (cached)", calls)
+	}
+}
+
+type countingCredential struct{ n *int }
+
+func (c countingCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	*c.n++
+	return azcore.AccessToken{Token: "tok", ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
