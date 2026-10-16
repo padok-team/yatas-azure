@@ -8,7 +8,7 @@ Yet Another Testing &amp; Auditing Solution
 
 `yatas-azure` is a [YATAS](https://github.com/padok-team/yatas) plugin that audits **Azure subscriptions**, the same way [yatas-aws](https://github.com/padok-team/yatas-aws) audits AWS accounts.
 
-**Phase 1 ships the 25 checks tagged `HDS`** (Hébergeur de Données de Santé, the French health-data-hosting certification). Run only those with `yatas --hds`.
+**Phase 1 ships 24 checks tagged `HDS`** (the 25th HDS criterion, MFA, [can't be verified on Azure](#criteria-not-usable-on-azure)) (Hébergeur de Données de Santé, the French health-data-hosting certification). Run only those with `yatas --hds`.
 
 ## Getting started
 
@@ -55,29 +55,18 @@ The `entra` checks (`AZURE_ENT_*`) read **Entra ID through Microsoft Graph, not 
 
 **A. Signed-in user (`az login`), no app registration.** The user needs an **Entra directory role**, activated in PIM → *Microsoft Entra roles* (separate from Azure RBAC PIM). Guests (B2B) have no directory access by default and get `403` without one.
 - Simplest: `Global Reader`.
-- Least privilege: `Directory Readers` + `Reports Reader` (the MFA registration report also needs Entra ID P1/P2).
+- Least privilege: `Directory Readers` + `Reports Reader`.
 
 **B. App registration (service principal), for unattended runs.** Grant it these Microsoft Graph **application** permissions and have a tenant administrator grant admin consent:
 
 | Permission | Used for |
 | --- | --- |
 | `Application.Read.All` | service principals, app registrations (`AZURE_ENT_001`, `AZURE_ENT_004`) |
-| `User.Read.All`, `GroupMember.Read.All` | resolve users and expand assigned groups (`AZURE_ENT_002`, `AZURE_ENT_003`) |
-| `AuditLog.Read.All` | MFA registration report (`AZURE_ENT_002`, requires Entra ID P1 or P2) |
-| `UserAuthenticationMethod.Read.All` | per-user MFA methods, fallback without P1 (`AZURE_ENT_002`) |
-| `Policy.Read.All` | Security Defaults and Conditional Access (`AZURE_ENT_002`) |
+| `User.Read.All`, `GroupMember.Read.All` | resolve users and expand assigned groups (`AZURE_ENT_003`) |
 | `Domain.Read.All` | verified domains (`AZURE_ENT_003`) |
 | `Directory.Read.All` | lockout settings (`AZURE_ENT_003`) |
 
-**IAM checks are scoped to the subscription.** `AZURE_ENT_*` only evaluate the identities holding a role assignment that applies to the audited subscription (assigned on it, above it, or on a resource group or resource inside it): users directly assigned, members of assigned groups (expanded), and assigned service principals. They never sweep the whole tenant. Guests with access are evaluated too. Their MFA is usually registered in their home tenant, so a guest failure message asks to check that the home tenant enforces MFA or is trusted through cross-tenant access settings. Guests don't count in the password-policy check: their password policy is their home tenant's.
-
-**MFA** (`AZURE_ENT_002`) is decided from several sources, strongest first. A user passes as soon as one covers them, and the message names which:
-1. **Azure Policy**: both built-in definitions *Users must authenticate with multi-factor authentication to create or update resources* (`4e6c27d5-…`) and *…to delete resources* (`db4a9d17-…`) assigned in **Deny** mode with no resource selector or `notScopes` limit. Needs only `Reader` (ARM), no Graph. Audit mode does not enforce and does not count.
-2. **Security Defaults** enabled (Graph `Policy.Read.All`).
-3. An enabled **Conditional Access** policy requiring MFA (or an authentication strength) for *all users* on *all apps or Azure Management*, with no location, risk, platform or device narrowing, and not excluding the user, their groups or any role (Graph `Policy.Read.All`).
-4. The user **registered an MFA method**: registration report (Entra ID P1+, `AuditLog.Read.All`), else each user's authentication methods (`UserAuthenticationMethod.Read.All`, no premium licence). Only read for users sources 1 to 3 don't cover.
-
-If a source can't be read (permission, licence), the failure says so ("MFA could not be confirmed (…)") and never passes. "Nothing enforces it" is reported only when every source was readable. Microsoft's own [mandatory MFA](https://learn.microsoft.com/entra/identity/authentication/concept-mandatory-multifactor-authentication) for Azure management (since October 2025) is not visible through any API, so it can't count as evidence. The `az login` token of the Azure CLI carries neither `Policy.Read.All` (Security Defaults) nor `UserAuthenticationMethod.Read.All`; use an app registration (option B) when you need them.
+**IAM checks are scoped to the subscription.** `AZURE_ENT_*` only evaluate the identities holding a role assignment that applies to the audited subscription (assigned on it, above it, or on a resource group or resource inside it): users directly assigned, members of assigned groups (expanded), and assigned service principals. They never sweep the whole tenant. Guests (including invited accounts typed `Member`, recognised by `#EXT#` in the UPN) don't count in the password-policy check: their password policy is their home tenant's.
 
 Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 403`; the ARM-only categories are unaffected.
 
@@ -107,9 +96,19 @@ Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 4
 | `AZURE_CDN_001` | CDN endpoints / Front Door routes HTTPS only | Cloudfronts only allow HTTPS |
 | `AZURE_RBAC_001` | No identity can write role assignments at subscription scope or above | IAM User can't elevate rights |
 | `AZURE_ENT_001` | Service principals with access to the subscription have no interactive sign-in credentials | IAM Non-human users don't have console password |
-| `AZURE_ENT_002` | Enabled users (members and guests) with access to the subscription have MFA enforced or registered (see below) | IAM Users have 2FA activated |
 | `AZURE_ENT_003` | Password expiry ≤ 365 days on the users' managed domains, and smart lockout ≤ 10 | IAM password policy must be defined and enforced |
 | `AZURE_ENT_004` | Active secrets / certificates < 90 days old, for apps with access to the subscription | IAM access key younger than 90 days |
+
+## Criteria not usable on Azure
+
+**MFA (`IAM Users have 2FA activated`, would be `AZURE_ENT_002`) is not part of the plugin.** `AZURE_ENT_002` is reserved and must not be reused. It cannot be verified reliably on Azure with the access an auditor normally has:
+
+- **Per-user registration** needs the Entra ID P1 registration report, or the `UserAuthenticationMethod.Read.All` scope, which the Azure CLI's `az login` token does not carry, even for a Global Administrator.
+- **Enforcement policies** (Security Defaults, Conditional Access) need `Policy.Read.All`, also missing from that token. On Ontex, Conditional Access was unreadable too.
+- **Azure Policy "MFA required" built-ins** (`4e6c27d5-…`, `db4a9d17-…`) can be read with `Reader`, but none of the audited customers (Ad Scientiam, Abbott, Ontex) had them assigned.
+- Microsoft's [mandatory MFA](https://learn.microsoft.com/entra/identity/authentication/concept-mandatory-multifactor-authentication) for Azure management is only visible as a banner in the portal (`aka.ms/postponePhase2MFA`), with no API.
+
+Tested on three real tenants (Ad Scientiam, Abbott, Ontex): every user ended as "MFA could not be confirmed". Gather this evidence manually instead (Conditional Access or Security Defaults screenshots, the Phase 2 banner, or the Entra sign-in logs). The tiered implementation (Azure Policy, Security Defaults, Conditional Access, then registration) is kept in git history, commit `a77df76`, if you want to run it with an app registration that has `Policy.Read.All`, `AuditLog.Read.All` and `UserAuthenticationMethod.Read.All`.
 
 ### Design decisions worth knowing
 

@@ -2,7 +2,6 @@ package entra
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -110,7 +109,7 @@ func GetServicePrincipals(s internal.Session, assignees []internal.Assignee) ([]
 	return sps, nil
 }
 
-// ---------------------------------------------------------------- users and MFA
+// ---------------------------------------------------------------- users
 
 type userJSON struct {
 	ID             string `json:"id"`
@@ -123,8 +122,7 @@ const userSelect = "?$select=id,userPrincipalName,accountEnabled,userType"
 
 // GetUsers returns the enabled users, members and guests, with access to the
 // subscription: users assigned directly plus the (transitive) members of
-// assigned groups. MFA status is not resolved here, see GetMFA, so a missing MFA
-// permission doesn't affect the checks that only need the list of users.
+// assigned groups.
 func GetUsers(s internal.Session, assignees []internal.Assignee) ([]User, error) {
 	ctx := context.TODO()
 	var g *internal.Graph
@@ -215,82 +213,6 @@ func domainOf(upn string) string {
 		return strings.ToLower(upn[i+1:])
 	}
 	return ""
-}
-
-type registrationJSON struct {
-	IsMfaRegistered bool `json:"isMfaRegistered"`
-}
-
-type methodJSON struct {
-	Type string `json:"@odata.type"`
-}
-
-// mfaMethodTypes are the authentication methods that count as a second factor.
-// Password, e-mail (SSPR only) and Temporary Access Pass don't.
-var mfaMethodTypes = map[string]bool{
-	"microsoftAuthenticatorAuthenticationMethod":  true,
-	"phoneAuthenticationMethod":                   true,
-	"fido2AuthenticationMethod":                   true,
-	"windowsHelloForBusinessAuthenticationMethod": true,
-	"softwareOathAuthenticationMethod":            true,
-	"hardwareOathAuthenticationMethod":            true,
-	"platformCredentialAuthenticationMethod":      true,
-}
-
-// mfaCapable reports whether a list of Graph "@odata.type" values contains a
-// second-factor method.
-func mfaCapable(odataTypes []string) bool {
-	for _, t := range odataTypes {
-		if mfaMethodTypes[strings.TrimPrefix(t, "#microsoft.graph.")] {
-			return true
-		}
-	}
-	return false
-}
-
-// mfaStatuses finds which users have MFA. It prefers the per-user registration
-// report (needs Entra ID P1+ and AuditLog.Read.All) and falls back to listing
-// each user's authentication methods (needs UserAuthenticationMethod.Read.All,
-// no premium licence). The strategy is probed on the first user.
-func mfaStatuses(ctx context.Context, g *internal.Graph, users []string) (map[string]bool, error) {
-	report := func(id string) (bool, error) {
-		r, err := internal.GraphGet[registrationJSON](ctx, g, "/reports/authenticationMethods/userRegistrationDetails/"+id)
-		if internal.IsNotFound(err) {
-			return false, nil // no registration row: nothing registered
-		}
-		return r.IsMfaRegistered, err
-	}
-	methods := func(id string) (bool, error) {
-		list, err := internal.GraphList[methodJSON](ctx, g, "/users/"+id+"/authentication/methods")
-		if err != nil {
-			return false, err
-		}
-		types := make([]string, 0, len(list))
-		for _, m := range list {
-			types = append(types, m.Type)
-		}
-		return mfaCapable(types), nil
-	}
-
-	lookup := report
-	first, err := report(users[0])
-	if err != nil {
-		reportErr := err
-		first, err = methods(users[0])
-		if err != nil {
-			return nil, fmt.Errorf("registration report: %s; authentication methods: %s", briefErr(reportErr), briefErr(err))
-		}
-		lookup = methods
-	}
-	result := map[string]bool{users[0]: first}
-	for _, id := range users[1:] {
-		registered, err := lookup(id)
-		if err != nil {
-			return nil, err
-		}
-		result[id] = registered
-	}
-	return result, nil
 }
 
 // ---------------------------------------------------------------- password policy

@@ -63,34 +63,12 @@ func Test_fetchErrorFails(t *testing.T) {
 	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) {
 		checkIfNoInteractiveSignIn(cfg, internal.Fetched[ServicePrincipal]{Err: err}, "t")
 	}), "FAIL")
-	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) { checkIfMFA(cfg, MFAInput{Users: internal.Fetched[User]{Err: err}}, "t") }), "FAIL")
 	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) {
 		checkIfPasswordPolicy(cfg, internal.Fetched[PasswordPolicy]{Err: err}, "t")
 	}), "FAIL")
 	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) {
 		checkIfCredentialsYoungerThan90Days(cfg, internal.Fetched[Application]{Err: err}, "t", time.Now)
 	}), "FAIL")
-}
-
-func Test_mfaCapable(t *testing.T) {
-	cases := []struct {
-		name  string
-		types []string
-		want  bool
-	}{
-		{"password only", []string{"#microsoft.graph.passwordAuthenticationMethod"}, false},
-		{"password and email", []string{"#microsoft.graph.passwordAuthenticationMethod", "#microsoft.graph.emailAuthenticationMethod"}, false},
-		{"temporary access pass", []string{"#microsoft.graph.temporaryAccessPassAuthenticationMethod"}, false},
-		{"authenticator", []string{"#microsoft.graph.passwordAuthenticationMethod", "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod"}, true},
-		{"phone", []string{"#microsoft.graph.phoneAuthenticationMethod"}, true},
-		{"fido2", []string{"#microsoft.graph.fido2AuthenticationMethod"}, true},
-		{"none", nil, false},
-	}
-	for _, c := range cases {
-		if got := mfaCapable(c.types); got != c.want {
-			t.Errorf("%s: mfaCapable = %v, want %v", c.name, got, c.want)
-		}
-	}
 }
 
 func Test_domainOf(t *testing.T) {

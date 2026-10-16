@@ -11,7 +11,7 @@ import (
 	"github.com/padok-team/yatas/plugins/commons"
 )
 
-// hdsChecks is the phase-1 scope: the 25 HDS checks mapped from yatas-aws (see
+// hdsChecks is the phase-1 scope: the HDS checks mapped from yatas-aws (see
 // PLAN.md §3). The list is explicit so adding or tagging a check is a conscious
 // decision ("don't over-tag").
 var hdsChecks = []string{
@@ -25,7 +25,7 @@ var hdsChecks = []string{
 	"AZURE_COS_001", "AZURE_COS_002",
 	"AZURE_CDN_001",
 	"AZURE_RBAC_001",
-	"AZURE_ENT_001", "AZURE_ENT_002", "AZURE_ENT_003", "AZURE_ENT_004",
+	"AZURE_ENT_001", "AZURE_ENT_003", "AZURE_ENT_004",
 }
 
 // With no usable credential every category must still emit all of its checks,

@@ -1,6 +1,6 @@
 # yatas-azure — Build Plan
 
-Status: phase 1 (HDS) implemented — 25 checks, unit-tested; not yet validated against a real subscription. Companion repo to [yatas-aws](../yatas-aws) and built from [yatas-template](../yatas-template).
+Status: phase 1 (HDS) implemented — 24 checks (the MFA criterion is not usable on Azure, see README), unit-tested and run against Ad Scientiam, Abbott and Ontex. Companion repo to [yatas-aws](../yatas-aws) and built from [yatas-template](../yatas-template).
 
 ## 0. Goal
 
