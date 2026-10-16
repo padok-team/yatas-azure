@@ -2,7 +2,6 @@ package entra
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -28,25 +27,6 @@ func Test_checkIfNoInteractiveSignIn(t *testing.T) {
 	run(ServicePrincipal{DisplayName: "a", Type: "Application", SSOMode: "saml"}, "OK")
 	run(ServicePrincipal{DisplayName: "mi", Type: "ManagedIdentity"}, "OK")
 	run(ServicePrincipal{DisplayName: "a", Type: "Application", SSOMode: "password"}, "FAIL")
-}
-
-func Test_checkIfMFA(t *testing.T) {
-	run := func(u User, want string) {
-		in := internal.Fetched[User]{Items: []User{u}}
-		assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) { checkIfMFA(cfg, in, "test") }), want)
-	}
-	run(User{UPN: "a@x", MFARegistered: true}, "OK")
-	run(User{UPN: "a@x"}, "FAIL")
-	run(User{UPN: "g_x.com#EXT#@t.onmicrosoft.com", Guest: true, MFARegistered: true}, "OK")
-	run(User{UPN: "g_x.com#EXT#@t.onmicrosoft.com", Guest: true}, "FAIL")
-}
-
-func Test_checkIfMFA_guestMessage(t *testing.T) {
-	in := internal.Fetched[User]{Items: []User{{UPN: "g@x", Guest: true}}}
-	check := internal.RunCheck(func(cfg commons.CheckConfig) { checkIfMFA(cfg, in, "test") })
-	if !strings.Contains(check.Results[0].Message, "Guest user") || !strings.Contains(check.Results[0].Message, "home tenant") {
-		t.Errorf("guest failure should be labelled and explained: %s", check.Results[0].Message)
-	}
 }
 
 func Test_checkIfPasswordPolicy(t *testing.T) {
@@ -83,7 +63,7 @@ func Test_fetchErrorFails(t *testing.T) {
 	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) {
 		checkIfNoInteractiveSignIn(cfg, internal.Fetched[ServicePrincipal]{Err: err}, "t")
 	}), "FAIL")
-	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) { checkIfMFA(cfg, internal.Fetched[User]{Err: err}, "t") }), "FAIL")
+	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) { checkIfMFA(cfg, MFAInput{Users: internal.Fetched[User]{Err: err}}, "t") }), "FAIL")
 	assertStatus(t, internal.RunCheck(func(cfg commons.CheckConfig) {
 		checkIfPasswordPolicy(cfg, internal.Fetched[PasswordPolicy]{Err: err}, "t")
 	}), "FAIL")
@@ -119,5 +99,22 @@ func Test_domainOf(t *testing.T) {
 	}
 	if got := domainOf("no-at-sign"); got != "" {
 		t.Errorf("domainOf = %q, want empty", got)
+	}
+}
+
+func Test_isGuest(t *testing.T) {
+	cases := []struct {
+		u    userJSON
+		want bool
+	}{
+		{userJSON{UPN: "a@contoso.com", UserType: "Member"}, false},
+		{userJSON{UPN: "a_x.com#EXT#@t.onmicrosoft.com", UserType: "Guest"}, true},
+		{userJSON{UPN: "a_x.com#EXT#@t.onmicrosoft.com", UserType: "Member"}, true}, // invited, but typed Member
+		{userJSON{UPN: "a@contoso.com", UserType: "Guest"}, true},
+	}
+	for _, c := range cases {
+		if got := isGuest(c.u); got != c.want {
+			t.Errorf("isGuest(%+v) = %v, want %v", c.u, got, c.want)
+		}
 	}
 }

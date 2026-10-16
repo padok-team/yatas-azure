@@ -65,12 +65,19 @@ The `entra` checks (`AZURE_ENT_*`) read **Entra ID through Microsoft Graph, not 
 | `User.Read.All`, `GroupMember.Read.All` | resolve users and expand assigned groups (`AZURE_ENT_002`, `AZURE_ENT_003`) |
 | `AuditLog.Read.All` | MFA registration report (`AZURE_ENT_002`, requires Entra ID P1 or P2) |
 | `UserAuthenticationMethod.Read.All` | per-user MFA methods, fallback without P1 (`AZURE_ENT_002`) |
+| `Policy.Read.All` | Security Defaults and Conditional Access (`AZURE_ENT_002`) |
 | `Domain.Read.All` | verified domains (`AZURE_ENT_003`) |
 | `Directory.Read.All` | lockout settings (`AZURE_ENT_003`) |
 
 **IAM checks are scoped to the subscription.** `AZURE_ENT_*` only evaluate the identities holding a role assignment that applies to the audited subscription (assigned on it, above it, or on a resource group or resource inside it): users directly assigned, members of assigned groups (expanded), and assigned service principals. They never sweep the whole tenant. Guests with access are evaluated too. Their MFA is usually registered in their home tenant, so a guest failure message asks to check that the home tenant enforces MFA or is trusted through cross-tenant access settings. Guests don't count in the password-policy check: their password policy is their home tenant's.
 
-**MFA** (`AZURE_ENT_002`) is read two ways, tried in order: the per-user registration report (Entra ID P1+, `AuditLog.Read.All`), then, for tenants without P1, each user's authentication methods (`UserAuthenticationMethod.Read.All`, no premium licence). The `az login` token of the Azure CLI does **not** carry `UserAuthenticationMethod.Read.All`, even for a Global Administrator, so on a non-P1 tenant this check needs an app registration with that permission (option B). If neither source is readable the check fails with `Unable to evaluate`.
+**MFA** (`AZURE_ENT_002`) is decided from several sources, strongest first. A user passes as soon as one covers them, and the message names which:
+1. **Azure Policy**: both built-in definitions *Users must authenticate with multi-factor authentication to create or update resources* (`4e6c27d5-…`) and *…to delete resources* (`db4a9d17-…`) assigned in **Deny** mode with no resource selector or `notScopes` limit. Needs only `Reader` (ARM), no Graph. Audit mode does not enforce and does not count.
+2. **Security Defaults** enabled (Graph `Policy.Read.All`).
+3. An enabled **Conditional Access** policy requiring MFA (or an authentication strength) for *all users* on *all apps or Azure Management*, with no location, risk, platform or device narrowing, and not excluding the user, their groups or any role (Graph `Policy.Read.All`).
+4. The user **registered an MFA method**: registration report (Entra ID P1+, `AuditLog.Read.All`), else each user's authentication methods (`UserAuthenticationMethod.Read.All`, no premium licence). Only read for users sources 1 to 3 don't cover.
+
+If a source can't be read (permission, licence), the failure says so ("MFA could not be confirmed (…)") and never passes. "Nothing enforces it" is reported only when every source was readable. Microsoft's own [mandatory MFA](https://learn.microsoft.com/entra/identity/authentication/concept-mandatory-multifactor-authentication) for Azure management (since October 2025) is not visible through any API, so it can't count as evidence. The `az login` token of the Azure CLI carries neither `Policy.Read.All` (Security Defaults) nor `UserAuthenticationMethod.Read.All`; use an app registration (option B) when you need them.
 
 Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 403`; the ARM-only categories are unaffected.
 
@@ -100,7 +107,7 @@ Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 4
 | `AZURE_CDN_001` | CDN endpoints / Front Door routes HTTPS only | Cloudfronts only allow HTTPS |
 | `AZURE_RBAC_001` | No identity can write role assignments at subscription scope or above | IAM User can't elevate rights |
 | `AZURE_ENT_001` | Service principals with access to the subscription have no interactive sign-in credentials | IAM Non-human users don't have console password |
-| `AZURE_ENT_002` | Enabled users (members and guests) with access to the subscription have MFA | IAM Users have 2FA activated |
+| `AZURE_ENT_002` | Enabled users (members and guests) with access to the subscription have MFA enforced or registered (see below) | IAM Users have 2FA activated |
 | `AZURE_ENT_003` | Password expiry ≤ 365 days on the users' managed domains, and smart lockout ≤ 10 | IAM password policy must be defined and enforced |
 | `AZURE_ENT_004` | Active secrets / certificates < 90 days old, for apps with access to the subscription | IAM access key younger than 90 days |
 

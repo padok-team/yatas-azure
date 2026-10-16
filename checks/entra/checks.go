@@ -2,6 +2,7 @@ package entra
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/padok-team/yatas-azure/internal"
@@ -45,25 +46,34 @@ func checkIfNoInteractiveSignIn(checkConfig commons.CheckConfig, sps internal.Fe
 	checkConfig.Queue <- check
 }
 
-// AZURE_ENT_002 (≈ AWS "IAM Users have 2FA activated").
-func checkIfMFA(checkConfig commons.CheckConfig, users internal.Fetched[User], testName string) {
-	check := internal.NewHDSCheck("Entra users with access to the subscription have MFA activated", "Check that every enabled member user holding access to the subscription (directly or through a group) has multi-factor authentication. Guests are evaluated too: MFA registered in the home tenant may not be visible here", testName)
-	if users.Failed(&check, "Entra users and MFA registrations") {
+// AZURE_ENT_002 (≈ AWS "IAM Users have 2FA activated"). A user passes when MFA
+// is enforced for them (Azure Policy, Security Defaults or Conditional Access) or
+// when they registered an MFA method. See mfa.go for the sources.
+func checkIfMFA(checkConfig commons.CheckConfig, in MFAInput, testName string) {
+	check := internal.NewHDSCheck("Entra users with access to the subscription have MFA enforced", "Check that every enabled user (member or guest) with access to the subscription is covered by MFA: enforced by Azure Policy, Security Defaults or a Conditional Access policy, or registered with an MFA method. A guest's MFA may be handled by their home tenant", testName)
+	if in.Users.Failed(&check, "Entra users") {
 		checkConfig.Queue <- check
 		return
 	}
-	for _, u := range users.Items {
+	for _, u := range in.Users.Items {
 		label := "User "
 		if u.Guest {
 			label = "Guest user "
 		}
+		v := in.Evidence.ByUser[u.ID]
 		switch {
-		case u.MFARegistered:
+		case v.Source != "":
+			internal.Pass(&check, u.ID, label+u.UPN+": MFA is enforced by "+v.Source)
+		case v.Registered:
 			internal.Pass(&check, u.ID, label+u.UPN+" has MFA registered")
-		case u.Guest:
-			internal.Fail(&check, u.ID, label+u.UPN+" has no MFA registered in this tenant (check that MFA is enforced by the home tenant or trusted through cross-tenant access settings)")
+		case in.Evidence.Unconfirmed:
+			internal.Fail(&check, u.ID, label+u.UPN+": MFA could not be confirmed ("+strings.Join(in.Evidence.Notes, "; ")+")")
 		default:
-			internal.Fail(&check, u.ID, label+u.UPN+" has no MFA registered")
+			msg := label + u.UPN + " has no MFA registered and nothing enforces it (" + strings.Join(in.Evidence.Notes, "; ") + ")"
+			if u.Guest {
+				msg += "; check that the home tenant enforces MFA or is trusted through cross-tenant access settings"
+			}
+			internal.Fail(&check, u.ID, msg)
 		}
 	}
 	checkConfig.Queue <- check

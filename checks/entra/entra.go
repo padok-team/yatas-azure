@@ -21,12 +21,15 @@ func RunChecks(wg *sync.WaitGroup, s internal.Session, c *commons.Config, queue 
 
 	sps := derive(assignees, "Entra service principals", func(a []internal.Assignee) ([]ServicePrincipal, error) { return GetServicePrincipals(s, a) })
 	members := derive(assignees, "Entra users", func(a []internal.Assignee) ([]User, error) { return GetUsers(s, a) })
-	users := derive(members, "Entra users MFA status", func(u []User) ([]User, error) { return GetMFA(s, u) })
+	mfa := MFAInput{Users: members}
+	if members.Err == nil {
+		mfa.Evidence = GetMFAEvidence(s, members.Items)
+	}
 	policy := derive(members, "Entra password policy", func(u []User) ([]PasswordPolicy, error) { return GetPasswordPolicy(s, u) })
 	apps := derive(sps, "Entra app registrations", func(p []ServicePrincipal) ([]Application, error) { return GetApplications(s, p) })
 
 	go commons.CheckTest(checkConfig.Wg, c, NoInteractiveSignInID, checkIfNoInteractiveSignIn)(checkConfig, sps, NoInteractiveSignInID)
-	go commons.CheckTest(checkConfig.Wg, c, MFAID, checkIfMFA)(checkConfig, users, MFAID)
+	go commons.CheckTest(checkConfig.Wg, c, MFAID, checkIfMFA)(checkConfig, mfa, MFAID)
 	go commons.CheckTest(checkConfig.Wg, c, PasswordPolicyID, checkIfPasswordPolicy)(checkConfig, policy, PasswordPolicyID)
 	go commons.CheckTest(checkConfig.Wg, c, CredentialAgeID, checkCredentialAgeNow)(checkConfig, apps, CredentialAgeID)
 

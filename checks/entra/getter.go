@@ -31,13 +31,12 @@ type ServicePrincipal struct {
 }
 
 // User is an enabled user (member or guest) with access to the subscription
-// (directly or through a group) and whether it has MFA.
+// (directly or through a group).
 type User struct {
-	ID            string
-	UPN           string
-	Guest         bool   // B2B guest: its credentials live in its home tenant
-	Domain        string // domain part of the UPN; empty for guests
-	MFARegistered bool
+	ID     string
+	UPN    string
+	Guest  bool   // B2B guest: its credentials live in its home tenant
+	Domain string // domain part of the UPN; empty for guests
 }
 
 // Domain is a verified tenant domain and its password expiration policy.
@@ -187,7 +186,7 @@ func GetUsers(s internal.Session, assignees []internal.Assignee) ([]User, error)
 	}
 	users := make([]User, 0, len(members))
 	for _, u := range members {
-		user := User{ID: u.ID, UPN: u.UPN, Guest: u.UserType == "Guest"}
+		user := User{ID: u.ID, UPN: u.UPN, Guest: isGuest(u)}
 		if !user.Guest {
 			// A guest's UPN domain is the resource tenant's, but its password
 			// policy is its home tenant's: it says nothing about this tenant.
@@ -205,29 +204,10 @@ func GetUsers(s internal.Session, assignees []internal.Assignee) ([]User, error)
 	return users, nil
 }
 
-// GetMFA sets the MFA status of the given users.
-func GetMFA(s internal.Session, users []User) ([]User, error) {
-	if len(users) == 0 {
-		return users, nil
-	}
-	g, err := internal.NewGraph(s)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0, len(users))
-	for _, u := range users {
-		ids = append(ids, u.ID)
-	}
-	mfa, err := mfaStatuses(context.TODO(), g, ids)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]User, len(users))
-	for i, u := range users {
-		u.MFARegistered = mfa[u.ID]
-		out[i] = u
-	}
-	return out, nil
+// isGuest recognises external (B2B) accounts. Invited users can have
+// userType "Member", but their UPN always carries the "#EXT#" marker.
+func isGuest(u userJSON) bool {
+	return u.UserType == "Guest" || strings.Contains(u.UPN, "#EXT#")
 }
 
 func domainOf(upn string) string {
@@ -298,7 +278,7 @@ func mfaStatuses(ctx context.Context, g *internal.Graph, users []string) (map[st
 		reportErr := err
 		first, err = methods(users[0])
 		if err != nil {
-			return nil, fmt.Errorf("cannot read MFA status: registration report: %v; authentication methods: %w", reportErr, err)
+			return nil, fmt.Errorf("registration report: %s; authentication methods: %s", briefErr(reportErr), briefErr(err))
 		}
 		lookup = methods
 	}
