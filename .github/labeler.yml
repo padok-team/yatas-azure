@@ -1,0 +1,85 @@
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - go.mod
+          - go.sum
+
+main:
+  - changed-files:
+      - any-glob-to-any-file:
+          - main.go
+
+makefile:
+  - changed-files:
+      - any-glob-to-any-file:
+          - Makefile
+
+readme:
+  - changed-files:
+      - any-glob-to-any-file:
+          - README.md
+
+github-actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/*
+
+internal:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/**
+
+network:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/network/**
+
+storage:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/storage/**
+
+disks:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/disks/**
+
+backup:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/backup/**
+
+sql:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/sql/**
+
+defender:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/defender/**
+
+aks:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/aks/**
+
+cosmosdb:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/cosmosdb/**
+
+cdn:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/cdn/**
+
+rbac:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/rbac/**
+
+entra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/entra/**

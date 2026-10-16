@@ -1,0 +1,14 @@
+plugins:
+  - name: "azure"
+    enabled: true
+    source: "github.com/padok-team/yatas-azure"
+    version: "local"
+
+pluginsConfiguration:
+  - pluginName: "azure"
+    # Each entry under `accounts` is one Azure subscription to audit.
+    accounts:
+      - name: "my-subscription"
+        subscription_id: "00000000-0000-0000-0000-000000000000"
+        # tenant_id: "11111111-1111-1111-1111-111111111111"  # optional
+        # resource_group: "my-rg"                             # optional: scope the audit to one resource group

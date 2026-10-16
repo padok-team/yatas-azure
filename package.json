@@ -1,0 +1,26 @@
+{
+  "name": "yatas-azure",
+  "version": "0.0.0",
+  "description": "Yet Another Testing &amp; Auditing Solution - Azure plugin",
+  "scripts": {
+    "release": "standard-version"
+  },
+  "standard-version": {
+    "skip": {
+      "changelog": false
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/padok-team/yatas-azure.git"
+  },
+  "author": "padok-team",
+  "bugs": {
+    "url": "https://github.com/padok-team/yatas-azure/issues"
+  },
+  "homepage": "https://github.com/padok-team/yatas-azure#readme",
+  "devDependencies": {
+    "standard-version": "^9.5.0"
+  },
+  "license": "Apache-2.0"
+}
