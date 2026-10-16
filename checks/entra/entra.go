@@ -20,7 +20,7 @@ func RunChecks(wg *sync.WaitGroup, s internal.Session, c *commons.Config, queue 
 	assignees := internal.Fetch("subscription role assignees", assigneeList, err)
 
 	sps := derive(assignees, "Entra service principals", func(a []internal.Assignee) ([]ServicePrincipal, error) { return GetServicePrincipals(s, a) })
-	members := derive(assignees, "Entra users", func(a []internal.Assignee) ([]User, error) { return GetMembers(s, a) })
+	members := derive(assignees, "Entra users", func(a []internal.Assignee) ([]User, error) { return GetUsers(s, a) })
 	users := derive(members, "Entra users MFA status", func(u []User) ([]User, error) { return GetMFA(s, u) })
 	policy := derive(members, "Entra password policy", func(u []User) ([]PasswordPolicy, error) { return GetPasswordPolicy(s, u) })
 	apps := derive(sps, "Entra app registrations", func(p []ServicePrincipal) ([]Application, error) { return GetApplications(s, p) })

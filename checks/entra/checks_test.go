@@ -2,6 +2,7 @@ package entra
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,16 @@ func Test_checkIfMFA(t *testing.T) {
 	}
 	run(User{UPN: "a@x", MFARegistered: true}, "OK")
 	run(User{UPN: "a@x"}, "FAIL")
+	run(User{UPN: "g_x.com#EXT#@t.onmicrosoft.com", Guest: true, MFARegistered: true}, "OK")
+	run(User{UPN: "g_x.com#EXT#@t.onmicrosoft.com", Guest: true}, "FAIL")
+}
+
+func Test_checkIfMFA_guestMessage(t *testing.T) {
+	in := internal.Fetched[User]{Items: []User{{UPN: "g@x", Guest: true}}}
+	check := internal.RunCheck(func(cfg commons.CheckConfig) { checkIfMFA(cfg, in, "test") })
+	if !strings.Contains(check.Results[0].Message, "Guest user") || !strings.Contains(check.Results[0].Message, "home tenant") {
+		t.Errorf("guest failure should be labelled and explained: %s", check.Results[0].Message)
+	}
 }
 
 func Test_checkIfPasswordPolicy(t *testing.T) {

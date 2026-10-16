@@ -68,7 +68,7 @@ The `entra` checks (`AZURE_ENT_*`) read **Entra ID through Microsoft Graph, not 
 | `Domain.Read.All` | verified domains (`AZURE_ENT_003`) |
 | `Directory.Read.All` | lockout settings (`AZURE_ENT_003`) |
 
-**IAM checks are scoped to the subscription.** `AZURE_ENT_*` only evaluate the identities holding a role assignment that applies to the audited subscription (assigned on it, above it, or on a resource group or resource inside it): users directly assigned, members of assigned groups (expanded), and assigned service principals. They never sweep the whole tenant. Guests are excluded from the MFA check, since their home tenant enforces MFA.
+**IAM checks are scoped to the subscription.** `AZURE_ENT_*` only evaluate the identities holding a role assignment that applies to the audited subscription (assigned on it, above it, or on a resource group or resource inside it): users directly assigned, members of assigned groups (expanded), and assigned service principals. They never sweep the whole tenant. Guests with access are evaluated too. Their MFA is usually registered in their home tenant, so a guest failure message asks to check that the home tenant enforces MFA or is trusted through cross-tenant access settings. Guests don't count in the password-policy check: their password policy is their home tenant's.
 
 **MFA** (`AZURE_ENT_002`) is read two ways, tried in order: the per-user registration report (Entra ID P1+, `AuditLog.Read.All`), then, for tenants without P1, each user's authentication methods (`UserAuthenticationMethod.Read.All`, no premium licence). The `az login` token of the Azure CLI does **not** carry `UserAuthenticationMethod.Read.All`, even for a Global Administrator, so on a non-P1 tenant this check needs an app registration with that permission (option B). If neither source is readable the check fails with `Unable to evaluate`.
 
@@ -100,7 +100,7 @@ Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 4
 | `AZURE_CDN_001` | CDN endpoints / Front Door routes HTTPS only | Cloudfronts only allow HTTPS |
 | `AZURE_RBAC_001` | No identity can write role assignments at subscription scope or above | IAM User can't elevate rights |
 | `AZURE_ENT_001` | Service principals with access to the subscription have no interactive sign-in credentials | IAM Non-human users don't have console password |
-| `AZURE_ENT_002` | Enabled member users with access to the subscription have MFA (guests excluded) | IAM Users have 2FA activated |
+| `AZURE_ENT_002` | Enabled users (members and guests) with access to the subscription have MFA | IAM Users have 2FA activated |
 | `AZURE_ENT_003` | Password expiry ≤ 365 days on the users' managed domains, and smart lockout ≤ 10 | IAM password policy must be defined and enforced |
 | `AZURE_ENT_004` | Active secrets / certificates < 90 days old, for apps with access to the subscription | IAM access key younger than 90 days |
 

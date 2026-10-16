@@ -47,16 +47,23 @@ func checkIfNoInteractiveSignIn(checkConfig commons.CheckConfig, sps internal.Fe
 
 // AZURE_ENT_002 (≈ AWS "IAM Users have 2FA activated").
 func checkIfMFA(checkConfig commons.CheckConfig, users internal.Fetched[User], testName string) {
-	check := internal.NewHDSCheck("Entra users with access to the subscription have MFA activated", "Check that every enabled member user holding access to the subscription (directly or through a group) has multi-factor authentication. Guests are excluded: their home tenant enforces MFA", testName)
+	check := internal.NewHDSCheck("Entra users with access to the subscription have MFA activated", "Check that every enabled member user holding access to the subscription (directly or through a group) has multi-factor authentication. Guests are evaluated too: MFA registered in the home tenant may not be visible here", testName)
 	if users.Failed(&check, "Entra users and MFA registrations") {
 		checkConfig.Queue <- check
 		return
 	}
 	for _, u := range users.Items {
-		if u.MFARegistered {
-			internal.Pass(&check, u.ID, "User "+u.UPN+" has MFA registered")
-		} else {
-			internal.Fail(&check, u.ID, "User "+u.UPN+" has no MFA registered")
+		label := "User "
+		if u.Guest {
+			label = "Guest user "
+		}
+		switch {
+		case u.MFARegistered:
+			internal.Pass(&check, u.ID, label+u.UPN+" has MFA registered")
+		case u.Guest:
+			internal.Fail(&check, u.ID, label+u.UPN+" has no MFA registered in this tenant (check that MFA is enforced by the home tenant or trusted through cross-tenant access settings)")
+		default:
+			internal.Fail(&check, u.ID, label+u.UPN+" has no MFA registered")
 		}
 	}
 	checkConfig.Queue <- check

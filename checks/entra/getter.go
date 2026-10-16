@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/padok-team/yatas-azure/internal"
+	"github.com/padok-team/yatas-azure/logger"
 )
 
 // Entra ID lives in Microsoft Graph, not ARM. Every getter below needs Graph
@@ -29,12 +30,13 @@ type ServicePrincipal struct {
 	SSOMode     string // preferredSingleSignOnMode: password, saml, oidc, notSupported, ...
 }
 
-// User is an enabled member user with access to the subscription (directly or
-// through a group) and whether it has MFA.
+// User is an enabled user (member or guest) with access to the subscription
+// (directly or through a group) and whether it has MFA.
 type User struct {
 	ID            string
 	UPN           string
-	Domain        string // domain part of the UPN
+	Guest         bool   // B2B guest: its credentials live in its home tenant
+	Domain        string // domain part of the UPN; empty for guests
 	MFARegistered bool
 }
 
@@ -120,12 +122,11 @@ type userJSON struct {
 
 const userSelect = "?$select=id,userPrincipalName,accountEnabled,userType"
 
-// GetMembers returns the enabled member users with access to the subscription:
-// users assigned directly plus the (transitive) members of assigned groups.
-// Guests are excluded: their MFA is enforced by their home tenant. MFA status is
-// not resolved here, see GetMFA, so a missing MFA permission doesn't affect the
-// checks that only need the list of users.
-func GetMembers(s internal.Session, assignees []internal.Assignee) ([]User, error) {
+// GetUsers returns the enabled users, members and guests, with access to the
+// subscription: users assigned directly plus the (transitive) members of
+// assigned groups. MFA status is not resolved here, see GetMFA, so a missing MFA
+// permission doesn't affect the checks that only need the list of users.
+func GetUsers(s internal.Session, assignees []internal.Assignee) ([]User, error) {
 	ctx := context.TODO()
 	var g *internal.Graph
 	graph := func() (*internal.Graph, error) {
@@ -180,14 +181,27 @@ func GetMembers(s internal.Session, assignees []internal.Assignee) ([]User, erro
 	var members []userJSON
 	for _, id := range order {
 		u := byID[id]
-		if u.AccountEnabled && u.UserType != "Guest" {
+		if u.AccountEnabled {
 			members = append(members, u)
 		}
 	}
 	users := make([]User, 0, len(members))
 	for _, u := range members {
-		users = append(users, User{ID: u.ID, UPN: u.UPN, Domain: domainOf(u.UPN)})
+		user := User{ID: u.ID, UPN: u.UPN, Guest: u.UserType == "Guest"}
+		if !user.Guest {
+			// A guest's UPN domain is the resource tenant's, but its password
+			// policy is its home tenant's: it says nothing about this tenant.
+			user.Domain = domainOf(u.UPN)
+		}
+		users = append(users, user)
 	}
+	guests := 0
+	for _, u := range users {
+		if u.Guest {
+			guests++
+		}
+	}
+	logger.Logger.Debug("Entra users with access to the subscription", "subscription", s.Target.SubscriptionID, "members", len(users)-guests, "guests", guests)
 	return users, nil
 }
 
@@ -325,7 +339,9 @@ const passwordRuleSettingsTemplate = "5cf42378-d67d-4f36-ba46-e8b86229381d"
 func GetPasswordPolicy(s internal.Session, users []User) ([]PasswordPolicy, error) {
 	wanted := map[string]bool{}
 	for _, u := range users {
-		wanted[u.Domain] = true
+		if u.Domain != "" {
+			wanted[u.Domain] = true
+		}
 	}
 	g, err := internal.NewGraph(s)
 	if err != nil {
