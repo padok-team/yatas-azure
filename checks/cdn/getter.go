@@ -3,7 +3,7 @@ package cdn
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn/v3"
 	"github.com/padok-team/yatas-azure/internal"
 )
 
