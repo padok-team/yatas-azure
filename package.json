@@ -1,6 +1,6 @@
 {
   "name": "yatas-azure",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Yet Another Testing &amp; Auditing Solution - Azure plugin",
   "scripts": {
     "release": "standard-version"
