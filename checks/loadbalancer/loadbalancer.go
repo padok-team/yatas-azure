@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v12"
 	"github.com/padok-team/yatas-azure/internal"
 	"github.com/padok-team/yatas/plugins/commons"
 )

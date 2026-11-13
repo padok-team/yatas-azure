@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice/v6"
 	"github.com/padok-team/yatas-azure/internal"
 	"github.com/padok-team/yatas/plugins/commons"
 )
