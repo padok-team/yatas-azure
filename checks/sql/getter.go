@@ -48,6 +48,11 @@ type Server struct {
 	// AutoMinorUpgrade: Azure SQL is patched by the platform; flexible servers
 	// are patched automatically, in a custom maintenance window when defined.
 	AutoMinorUpgrade bool
+	// DeleteLock is true when a lock (CanNotDelete or ReadOnly) protects the server.
+	DeleteLock bool
+	// Auditing is true when audit logs are enabled (Azure SQL auditing policy) or
+	// shipped to a diagnostic destination (flexible servers).
+	Auditing bool
 }
 
 // MinPITRDays is the minimum PITR retention accepted by the backup check.
@@ -65,6 +70,9 @@ func GetServers(s internal.Session) ([]Server, error) {
 			return nil, err
 		}
 		servers = append(servers, list...)
+	}
+	if err := enrich(s, servers); err != nil {
+		return nil, err
 	}
 	return servers, nil
 }

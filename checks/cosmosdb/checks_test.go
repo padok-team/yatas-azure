@@ -38,3 +38,12 @@ func Test_fetchErrorFails(t *testing.T) {
 		run(t, fn, internal.Fetched[Account]{Err: errors.New("403")}, "FAIL")
 	}
 }
+
+func Test_checkIfTTL(t *testing.T) {
+	for ttl, want := range map[bool]string{true: "OK", false: "FAIL"} {
+		in := internal.Fetched[Container]{Items: []Container{{Name: "c", TTL: ttl}}}
+		if got := internal.RunCheck(func(cfg commons.CheckConfig) { checkIfTTL(cfg, in, "t") }); got.Status != want {
+			t.Errorf("ttl=%v: %s want %s", ttl, got.Status, want)
+		}
+	}
+}

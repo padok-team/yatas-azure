@@ -3,6 +3,7 @@ package disks
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v7"
 	"github.com/padok-team/yatas-azure/internal"
@@ -16,6 +17,11 @@ type Disk struct {
 	// EncryptionType is the SSE type, e.g. EncryptionAtRestWithPlatformKey,
 	// EncryptionAtRestWithCustomerKey, EncryptionAtRestWithPlatformAndCustomerKeys.
 	EncryptionType string
+
+	SKU      string
+	Attached bool      // managed by a VM
+	SourceID string    // snapshots: the disk they were taken from
+	Created  time.Time // creation time
 }
 
 // CustomerManaged reports whether a customer-managed key is involved.
@@ -44,7 +50,13 @@ func GetDisks(s internal.Session) ([]Disk, error) {
 			if !s.Target.InScope(id) {
 				continue
 			}
-			d := Disk{ID: id, Name: internal.Deref(raw.Name)}
+			d := Disk{ID: id, Name: internal.Deref(raw.Name), Attached: raw.ManagedBy != nil || len(raw.ManagedByExtended) > 0}
+			if raw.SKU != nil && raw.SKU.Name != nil {
+				d.SKU = string(*raw.SKU.Name)
+			}
+			if raw.Properties != nil && raw.Properties.TimeCreated != nil {
+				d.Created = *raw.Properties.TimeCreated
+			}
 			if raw.Properties != nil && raw.Properties.Encryption != nil && raw.Properties.Encryption.Type != nil {
 				d.EncryptionType = string(*raw.Properties.Encryption.Type)
 			}
@@ -76,6 +88,14 @@ func GetSnapshots(s internal.Session) ([]Disk, error) {
 				continue
 			}
 			d := Disk{ID: id, Name: internal.Deref(raw.Name), Snapshot: true}
+			if raw.Properties != nil {
+				if raw.Properties.TimeCreated != nil {
+					d.Created = *raw.Properties.TimeCreated
+				}
+				if raw.Properties.CreationData != nil {
+					d.SourceID = internal.Deref(raw.Properties.CreationData.SourceResourceID)
+				}
+			}
 			if raw.Properties != nil && raw.Properties.Encryption != nil && raw.Properties.Encryption.Type != nil {
 				d.EncryptionType = string(*raw.Properties.Encryption.Type)
 			}

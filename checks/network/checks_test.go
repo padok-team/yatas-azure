@@ -61,3 +61,17 @@ func Test_fetchErrorFails(t *testing.T) {
 		run(t, fn, failed, "FAIL")
 	}
 }
+
+func Test_phase2Checks(t *testing.T) {
+	st := func(f func(commons.CheckConfig, internal.Fetched[VNet], string), v VNet) string {
+		in := internal.Fetched[VNet]{Items: []VNet{v}}
+		return internal.RunCheck(func(cfg commons.CheckConfig) { f(cfg, in, "t") }).Status
+	}
+	if st(checkIfCIDRSize, VNet{AddressPrefixes: []string{"10.0.0.0/16"}}) != "OK" ||
+		st(checkIfCIDRSize, VNet{AddressPrefixes: []string{"10.1.0.0/24", "10.0.0.0/8"}}) != "FAIL" {
+		t.Error("cidr")
+	}
+	if st(checkIfSingleNATGateway, VNet{NATGateways: 1}) != "OK" || st(checkIfSingleNATGateway, VNet{NATGateways: 2}) != "FAIL" {
+		t.Error("nat")
+	}
+}

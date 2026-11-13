@@ -13,6 +13,8 @@ type Cluster struct {
 	Name               string
 	Private            bool
 	AuthorizedIPRanges []string
+	// ControlPlaneLogs is true when kube-apiserver or kube-audit logs are shipped.
+	ControlPlaneLogs bool
 }
 
 // GetClusters lists the AKS clusters of the target.
@@ -44,6 +46,11 @@ func GetClusters(s internal.Session) ([]Cluster, error) {
 					c.AuthorizedIPRanges = append(c.AuthorizedIPRanges, internal.Deref(r))
 				}
 			}
+			diag, err := internal.GetDiagnosticSettings(s, id)
+			if err != nil {
+				return nil, err
+			}
+			c.ControlPlaneLogs = internal.LogsShipped(diag, "kube-apiserver", "kube-audit", "kube-audit-admin")
 			clusters = append(clusters, c)
 		}
 	}

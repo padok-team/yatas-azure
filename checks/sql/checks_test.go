@@ -59,3 +59,16 @@ func Test_fetchErrorFails(t *testing.T) {
 		run(t, fn, failed, "FAIL")
 	}
 }
+
+func Test_extraChecks(t *testing.T) {
+	st := func(f func(commons.CheckConfig, internal.Fetched[Server], string), s Server) string {
+		in := internal.Fetched[Server]{Items: []Server{s}}
+		return internal.RunCheck(func(cfg commons.CheckConfig) { f(cfg, in, "t") }).Status
+	}
+	if st(checkIfDeleteLock, Server{DeleteLock: true}) != "OK" || st(checkIfDeleteLock, Server{}) != "FAIL" {
+		t.Error("lock")
+	}
+	if st(checkIfAuditing, Server{Auditing: true}) != "OK" || st(checkIfAuditing, Server{}) != "FAIL" {
+		t.Error("auditing")
+	}
+}

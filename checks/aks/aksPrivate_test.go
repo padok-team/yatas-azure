@@ -26,3 +26,13 @@ func Test_checkIfPrivateOrRestricted(t *testing.T) {
 	run(one(Cluster{Name: "c", AuthorizedIPRanges: []string{"0.0.0.0/0"}}), "FAIL")
 	run(internal.Fetched[Cluster]{Err: errors.New("403")}, "FAIL")
 }
+
+func Test_checkIfControlPlaneLogs(t *testing.T) {
+	for logs, want := range map[bool]string{true: "OK", false: "FAIL"} {
+		in := internal.Fetched[Cluster]{Items: []Cluster{{Name: "a", ControlPlaneLogs: logs}}}
+		got := internal.RunCheck(func(cfg commons.CheckConfig) { checkIfControlPlaneLogs(cfg, in, "t") })
+		if got.Status != want {
+			t.Errorf("logs=%v status=%s want %s", logs, got.Status, want)
+		}
+	}
+}

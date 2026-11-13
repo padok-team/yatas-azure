@@ -29,6 +29,10 @@ type VNet struct {
 	// FlowLogged is true when an enabled flow log targets the VNet, one of its
 	// subnets, or a network security group attached to one of its subnets.
 	FlowLogged bool
+	// AddressPrefixes are the CIDRs of the VNet address space.
+	AddressPrefixes []string
+	// NATGateways counts the distinct NAT gateways attached to the VNet subnets.
+	NATGateways int
 }
 
 // GetVNets lists the virtual networks of the target and resolves their public
@@ -76,7 +80,13 @@ func GetVNets(s internal.Session) ([]VNet, error) {
 		v := VNet{ID: id, Name: internal.Deref(raw.Name), Location: strings.ToLower(internal.Deref(raw.Location))}
 		covered := flowLogTargets[strings.ToLower(id)]
 		zones := map[string]bool{}
+		nats := map[string]bool{}
 		if raw.Properties != nil {
+			if raw.Properties.AddressSpace != nil {
+				for _, p := range raw.Properties.AddressSpace.AddressPrefixes {
+					v.AddressPrefixes = append(v.AddressPrefixes, internal.Deref(p))
+				}
+			}
 			for _, sn := range raw.Properties.Subnets {
 				subnetID := internal.Deref(sn.ID)
 				subnet := Subnet{ID: subnetID, Name: internal.Deref(sn.Name)}
@@ -86,6 +96,9 @@ func GetVNets(s internal.Session) ([]VNet, error) {
 							subnet.Public = true
 							break
 						}
+					}
+					if sn.Properties.NatGateway != nil {
+						nats[strings.ToLower(internal.Deref(sn.Properties.NatGateway.ID))] = true
 					}
 					if nsg := sn.Properties.NetworkSecurityGroup; nsg != nil && flowLogTargets[strings.ToLower(internal.Deref(nsg.ID))] {
 						covered = true
@@ -101,6 +114,7 @@ func GetVNets(s internal.Session) ([]VNet, error) {
 				}
 			}
 		}
+		v.NATGateways = len(nats)
 		for z := range zones {
 			v.VMZones = append(v.VMZones, z)
 		}

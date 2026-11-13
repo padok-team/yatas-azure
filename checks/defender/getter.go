@@ -71,3 +71,44 @@ func GetPolicyAssignments(s internal.Session) ([]PolicyAssignment, error) {
 	}
 	return assignments, nil
 }
+
+// Alert is an active Defender for Cloud security alert.
+type Alert struct {
+	ID       string
+	Name     string
+	Severity string
+	Status   string
+}
+
+// GetAlerts lists the security alerts of the subscription.
+func GetAlerts(s internal.Session) ([]Alert, error) {
+	if err := s.Valid(); err != nil {
+		return nil, err
+	}
+	client, err := armsecurity.NewAlertsClient(s.Target.SubscriptionID, s.Credential, nil)
+	if err != nil {
+		return nil, err
+	}
+	var alerts []Alert
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		for _, raw := range page.Value {
+			a := Alert{ID: internal.Deref(raw.ID)}
+			if p := raw.Properties; p != nil {
+				a.Name = internal.Deref(p.AlertDisplayName)
+				if p.Severity != nil {
+					a.Severity = string(*p.Severity)
+				}
+				if p.Status != nil {
+					a.Status = string(*p.Status)
+				}
+			}
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts, nil
+}

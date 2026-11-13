@@ -37,3 +37,17 @@ func checkIfPrivateOrRestricted(checkConfig commons.CheckConfig, clusters intern
 	}
 	checkConfig.Queue <- check
 }
+
+// LoggingID is the check's unique, stable ID.
+const LoggingID = "AZURE_AKS_002"
+
+// checkIfControlPlaneLogs (≈ AWS "EKS clusters have control plane logging enabled").
+func checkIfControlPlaneLogs(cfg commons.CheckConfig, in internal.Fetched[Cluster], id string) {
+	check := internal.NewCheck("AKS clusters have control plane logging enabled", "Check that kube-apiserver or kube-audit logs are sent to a diagnostic destination", id)
+	internal.Evaluate(cfg, check, in, "AKS clusters", func(c Cluster) *internal.Verdict {
+		if c.ControlPlaneLogs {
+			return internal.Yes(c.ID, "Control plane logs of "+c.Name+" are exported")
+		}
+		return internal.No(c.ID, "Control plane logs of "+c.Name+" are not exported by any diagnostic setting")
+	})
+}

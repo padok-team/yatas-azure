@@ -55,3 +55,44 @@ func Pass(check *commons.Check, resourceID, message string) {
 func Fail(check *commons.Check, resourceID, message string) {
 	check.AddResult(commons.Result{Status: "FAIL", Message: message, ResourceID: resourceID})
 }
+
+// NewCheck initialises a check that is not part of the HDS scope.
+func NewCheck(name, description, id string, categories ...string) commons.Check {
+	if len(categories) == 0 {
+		categories = []string{"Security", "Good Practice"}
+	}
+	var check commons.Check
+	check.InitCheck(name, description, id, categories)
+	return check
+}
+
+// Verdict is the outcome of a check for one resource.
+type Verdict struct {
+	ID  string
+	OK  bool
+	Msg string
+}
+
+// Evaluate adds one result per resource using fn and pushes the check on the
+// queue. A nil verdict skips the resource (the check does not apply to it). A
+// fetch error becomes a FAIL instead of an empty, compliant check.
+func Evaluate[T any](cfg commons.CheckConfig, check commons.Check, f Fetched[T], what string, fn func(T) *Verdict) {
+	if !f.Failed(&check, what) {
+		for _, item := range f.Items {
+			v := fn(item)
+			if v == nil {
+				continue
+			}
+			if v.OK {
+				Pass(&check, v.ID, v.Msg)
+			} else {
+				Fail(&check, v.ID, v.Msg)
+			}
+		}
+	}
+	cfg.Queue <- check
+}
+
+// Yes / No build a passing / failing verdict.
+func Yes(id, msg string) *Verdict { return &Verdict{ID: id, OK: true, Msg: msg} }
+func No(id, msg string) *Verdict  { return &Verdict{ID: id, OK: false, Msg: msg} }

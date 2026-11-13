@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 
@@ -16,6 +17,8 @@ const (
 	TwoSubnetsID           = "AZURE_NET_003"
 	ZonesID                = "AZURE_NET_004"
 	FlowLogsID             = "AZURE_NET_005"
+	CIDRSizeID             = "AZURE_NET_006"
+	SingleNATID            = "AZURE_NET_007"
 )
 
 // AZURE_NET_001 (≈ AWS "VPC can't be in the same account"): a subscription is the
@@ -129,4 +132,37 @@ func checkIfFlowLogsEnabled(checkConfig commons.CheckConfig, vnets internal.Fetc
 		}
 	}
 	checkConfig.Queue <- check
+}
+
+// maxCIDRSize is the widest address block (smallest prefix length) accepted.
+const maxCIDRPrefix = 16
+
+// AZURE_NET_006 (≈ AWS "VPC CIDR is not too large"): address spaces wider than a
+// /16 waste address space and make peering with other networks harder.
+func checkIfCIDRSize(checkConfig commons.CheckConfig, vnets internal.Fetched[VNet], testName string) {
+	check := internal.NewCheck("VNet address spaces are not oversized", fmt.Sprintf("Check that VNet address prefixes are /%d or smaller", maxCIDRPrefix), testName, "Reliability", "Good Practice")
+	internal.Evaluate(checkConfig, check, vnets, "virtual networks", func(v VNet) *internal.Verdict {
+		for _, cidr := range v.AddressPrefixes {
+			_, n, err := net.ParseCIDR(cidr)
+			if err != nil {
+				continue
+			}
+			if ones, _ := n.Mask.Size(); ones < maxCIDRPrefix {
+				return internal.No(v.ID, fmt.Sprintf("VNet %s has an address space larger than /%d (%s)", v.Name, maxCIDRPrefix, cidr))
+			}
+		}
+		return internal.Yes(v.ID, "VNet "+v.Name+" address space is not oversized")
+	})
+}
+
+// AZURE_NET_007 (≈ AWS "VPC has a single NAT gateway"): one NAT gateway per VNet is
+// enough, it is zonal-resilient by design and each one is billed.
+func checkIfSingleNATGateway(checkConfig commons.CheckConfig, vnets internal.Fetched[VNet], testName string) {
+	check := internal.NewCheck("VNets have a single NAT gateway", "Check that VNets do not run more than one NAT gateway", testName, "Cost", "Good Practice")
+	internal.Evaluate(checkConfig, check, vnets, "virtual networks", func(v VNet) *internal.Verdict {
+		if v.NATGateways > 1 {
+			return internal.No(v.ID, fmt.Sprintf("VNet %s has %d NAT gateways", v.Name, v.NATGateways))
+		}
+		return internal.Yes(v.ID, fmt.Sprintf("VNet %s has %d NAT gateway(s)", v.Name, v.NATGateways))
+	})
 }

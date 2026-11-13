@@ -26,3 +26,19 @@ func Test_checkIfHTTPSOnly(t *testing.T) {
 	run(one(Entrypoint{Name: "e"}), "FAIL")
 	run(internal.Fetched[Entrypoint]{Err: errors.New("403")}, "FAIL")
 }
+
+func Test_profileChecks(t *testing.T) {
+	st := func(f func(commons.CheckConfig, internal.Fetched[Profile], string), p Profile) string {
+		in := internal.Fetched[Profile]{Items: []Profile{p}}
+		return internal.RunCheck(func(cfg commons.CheckConfig) { f(cfg, in, "t") }).Status
+	}
+	if st(checkIfWAF, Profile{FrontDoor: true, WAF: true}) != "OK" || st(checkIfWAF, Profile{FrontDoor: true}) != "FAIL" || st(checkIfWAF, Profile{}) != "OK" {
+		t.Error("waf")
+	}
+	if st(checkIfLogs, Profile{AccessLogs: true}) != "OK" || st(checkIfLogs, Profile{}) != "FAIL" {
+		t.Error("logs")
+	}
+	if st(checkIfTLS12, Profile{FrontDoor: true}) != "OK" || st(checkIfTLS12, Profile{FrontDoor: true, WeakTLSDomains: []string{"a", "b"}}) != "FAIL" {
+		t.Error("tls")
+	}
+}

@@ -83,3 +83,53 @@ entra:
   - changed-files:
       - any-glob-to-any-file:
           - checks/entra/**
+
+acr:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/acr/**
+
+activitylog:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/activitylog/**
+
+apim:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/apim/**
+
+bastion:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/bastion/**
+
+functions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/functions/**
+
+keyvaultcerts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/keyvaultcerts/**
+
+loadbalancer:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/loadbalancer/**
+
+servicebus:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/servicebus/**
+
+vm:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/vm/**
+
+vmss:
+  - changed-files:
+      - any-glob-to-any-file:
+          - checks/vmss/**

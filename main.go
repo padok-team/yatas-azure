@@ -9,17 +9,27 @@ import (
 	"github.com/hashicorp/go-plugin"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/padok-team/yatas-azure/checks/acr"
+	"github.com/padok-team/yatas-azure/checks/activitylog"
 	"github.com/padok-team/yatas-azure/checks/aks"
+	"github.com/padok-team/yatas-azure/checks/apim"
 	"github.com/padok-team/yatas-azure/checks/backup"
+	"github.com/padok-team/yatas-azure/checks/bastion"
 	"github.com/padok-team/yatas-azure/checks/cdn"
 	"github.com/padok-team/yatas-azure/checks/cosmosdb"
 	"github.com/padok-team/yatas-azure/checks/defender"
 	"github.com/padok-team/yatas-azure/checks/disks"
 	"github.com/padok-team/yatas-azure/checks/entra"
+	"github.com/padok-team/yatas-azure/checks/functions"
+	"github.com/padok-team/yatas-azure/checks/keyvaultcerts"
+	"github.com/padok-team/yatas-azure/checks/loadbalancer"
 	"github.com/padok-team/yatas-azure/checks/network"
 	"github.com/padok-team/yatas-azure/checks/rbac"
+	"github.com/padok-team/yatas-azure/checks/servicebus"
 	"github.com/padok-team/yatas-azure/checks/sql"
 	"github.com/padok-team/yatas-azure/checks/storage"
+	"github.com/padok-team/yatas-azure/checks/vm"
+	"github.com/padok-team/yatas-azure/checks/vmss"
 	"github.com/padok-team/yatas-azure/internal"
 	"github.com/padok-team/yatas-azure/logger"
 	"github.com/padok-team/yatas/plugins/commons"
@@ -117,6 +127,16 @@ func initTest(s internal.Session, c *commons.Config, target internal.Target) com
 	go commons.CheckMacroTest(&wg, c, cdn.RunChecks)(&wg, s, c, queue)
 	go commons.CheckMacroTest(&wg, c, rbac.RunChecks)(&wg, s, c, queue)
 	go commons.CheckMacroTest(&wg, c, entra.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, acr.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, activitylog.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, apim.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, bastion.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, functions.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, keyvaultcerts.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, loadbalancer.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, servicebus.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, vm.RunChecks)(&wg, s, c, queue)
+	go commons.CheckMacroTest(&wg, c, vmss.RunChecks)(&wg, s, c, queue)
 
 	go func() {
 		for t := range queue {

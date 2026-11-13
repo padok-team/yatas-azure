@@ -8,7 +8,7 @@ Yet Another Testing &amp; Auditing Solution
 
 `yatas-azure` is a [YATAS](https://github.com/padok-team/yatas) plugin that audits **Azure subscriptions**, the same way [yatas-aws](https://github.com/padok-team/yatas-aws) audits AWS accounts.
 
-**Phase 1 ships 24 checks tagged `HDS`** (the 25th HDS criterion, MFA, [can't be verified on Azure](#criteria-not-usable-on-azure)) (Hébergeur de Données de Santé, the French health-data-hosting certification). Run only those with `yatas --hds`.
+**Phase 1 ships 24 checks tagged `HDS`**, and **phase 2 adds 36 breadth checks** (not tagged `HDS`) (the 25th HDS criterion, MFA, [can't be verified on Azure](#criteria-not-usable-on-azure)) (Hébergeur de Données de Santé, the French health-data-hosting certification). Run only those with `yatas --hds`.
 
 ## Getting started
 
@@ -46,7 +46,7 @@ Assign these built-in roles to the identity, **scoped to each audited subscripti
 
 | Role | Why |
 | --- | --- |
-| `Reader` | List networks, storage, disks, SQL/PostgreSQL/MySQL, Cosmos DB, AKS, CDN/Front Door, backup vaults, role assignments |
+| `Reader` | List networks, VMs, scale sets, container registries, API Management, Service Bus, Function Apps, locks, diagnostic settings, storage, disks, SQL/PostgreSQL/MySQL, Cosmos DB, AKS, CDN/Front Door, backup vaults, role assignments |
 | `Security Reader` | Read Microsoft Defender for Cloud plans |
 
 ### ⚠️ Microsoft Entra ID (Graph) — extra setup
@@ -98,6 +98,54 @@ Without Entra access, `AZURE_ENT_*` fail with `Unable to evaluate … returned 4
 | `AZURE_ENT_001` | Service principals with access to the subscription have no interactive sign-in credentials | IAM Non-human users don't have console password |
 | `AZURE_ENT_003` | Password expiry ≤ 365 days on the users' managed domains, and smart lockout ≤ 10 | IAM password policy must be defined and enforced |
 | `AZURE_ENT_004` | Active secrets / certificates < 90 days old, for apps with access to the subscription | IAM access key younger than 90 days |
+
+## Breadth checks (phase 2)
+
+Mirrors of the non-HDS yatas-aws checks. They are not tagged `HDS`, so `yatas --hds` ignores them.
+
+| ID | Check | Mirrors (yatas-aws) |
+| --- | --- | --- |
+| `AZURE_ACT_001` | Activity Log (Administrative + Security) exported to a destination | CloudTrail logs exported |
+| `AZURE_STO_002` | Blob soft delete or versioning | S3 versioning |
+| `AZURE_STO_003` | Geo-redundant SKU | S3 replication |
+| `AZURE_STO_004` | Lifecycle management policy | S3 lifecycle |
+| `AZURE_STO_005` | Account-level immutable storage | S3 object lock |
+| `AZURE_STO_006` | Public blob access disabled | S3 block public access |
+| `AZURE_STO_007` | HTTPS required, TLS ≥ 1.2 | S3 secure transport |
+| `AZURE_DSK_003` | Managed disks attached | Volumes in use |
+| `AZURE_DSK_004` | No Standard HDD disks | Volumes not GP2 |
+| `AZURE_DSK_005` | Attached disks have a snapshot < 7 days | Volumes have snapshots |
+| `AZURE_NET_006` | VNet address space not larger than /16 | VPC CIDR size |
+| `AZURE_NET_007` | At most one NAT gateway per VNet | Single NAT gateway |
+| `AZURE_SQL_006` | Resource lock on database servers | RDS delete protection |
+| `AZURE_SQL_007` | Auditing enabled / logs exported | RDS logs exported |
+| `AZURE_DEF_003` | No active high severity Defender alert | GuardDuty no HIGH findings |
+| `AZURE_AKS_002` | Control plane logs (kube-apiserver / kube-audit) exported | EKS control plane logging |
+| `AZURE_COS_003` | Cosmos DB (NoSQL) containers have a TTL | DynamoDB TTL |
+| `AZURE_CDN_002` | Front Door profiles have a WAF policy | CloudFront WAF |
+| `AZURE_CDN_003` | CDN / Front Door access logs exported | CloudFront logging |
+| `AZURE_CDN_004` | Front Door custom domains require TLS 1.2 | CloudFront TLS version |
+| `AZURE_VM_001` | VMs have no public IP | EC2 no public IP |
+| `AZURE_VM_002` | Boot diagnostics enabled | EC2 monitoring |
+| `AZURE_VMSS_001` | Scale sets span ≥ 2 availability zones | Autoscaling multi-AZ |
+| `AZURE_ACR_001` | Registry encrypted with a CMK | ECR encryption |
+| `AZURE_ACR_002` | Retention policy for untagged manifests | ECR lifecycle |
+| `AZURE_ACR_003` | Admin user disabled | — |
+| `AZURE_ACR_004` | Defender for Containers scanning enabled | ECR image scanning |
+| `AZURE_APIM_001` | API Management gateway logs exported | API Gateway logging |
+| `AZURE_APIM_002` | API Management in a VNet or public access disabled | API Gateway ACL |
+| `AZURE_SB_001` | Service Bus queue message TTL ≤ 14 days | SQS retention |
+| `AZURE_FUNC_001` | Function Apps with VNet integration or public access disabled | Lambda in VPC |
+| `AZURE_FUNC_002` | Function Apps HTTPS only | — |
+| `AZURE_KVC_001` | Key Vault certificates not expired / expiring within 30 days | ACM expiry |
+| `AZURE_KVC_002` | Key Vault certificates enabled and active | ACM validity |
+| `AZURE_BAS_001` | Bastion audit logs exported | SSM session logs |
+| `AZURE_LB_001` | Application Gateway access logs exported | ELB access logs |
+
+Notes:
+- **Key Vault certificates (`KVC`) are data-plane objects.** `Reader` is not enough: the identity also needs a data-plane role on each vault (e.g. `Key Vault Certificates User`, or an access policy with `list`). A vault that cannot be read is reported as `FAIL` ("Unable to evaluate"), never skipped.
+- Checks that only apply to some resources skip the others (e.g. `STO_002/004/005` skip accounts without a blob service, `CDN_002/004` skip classic CDN profiles).
+- Not implemented: **Azure AD B2C** (`cognito` mirror) has no ARM-level settings to audit, and Storage Queue retention is a data-plane setting.
 
 ## Criteria not usable on Azure
 

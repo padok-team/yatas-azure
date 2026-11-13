@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,8 +29,31 @@ var hdsChecks = []string{
 	"AZURE_ENT_001", "AZURE_ENT_003", "AZURE_ENT_004",
 }
 
+// phase2Checks are the breadth checks (PLAN.md §4). They must never carry the HDS tag.
+var phase2Checks = []string{
+	"AZURE_ACT_001",
+	"AZURE_STO_002", "AZURE_STO_003", "AZURE_STO_004", "AZURE_STO_005", "AZURE_STO_006", "AZURE_STO_007",
+	"AZURE_DSK_003", "AZURE_DSK_004", "AZURE_DSK_005",
+	"AZURE_AKS_002",
+	"AZURE_DEF_003",
+	"AZURE_NET_006", "AZURE_NET_007",
+	"AZURE_SQL_006", "AZURE_SQL_007",
+	"AZURE_COS_003",
+	"AZURE_CDN_002", "AZURE_CDN_003", "AZURE_CDN_004",
+	"AZURE_VM_001", "AZURE_VM_002",
+	"AZURE_VMSS_001",
+	"AZURE_ACR_001", "AZURE_ACR_002", "AZURE_ACR_003", "AZURE_ACR_004",
+	"AZURE_APIM_001", "AZURE_APIM_002",
+	"AZURE_SB_001",
+	"AZURE_FUNC_001", "AZURE_FUNC_002",
+	"AZURE_KVC_001", "AZURE_KVC_002",
+	"AZURE_BAS_001",
+	"AZURE_LB_001",
+}
+
 // With no usable credential every category must still emit all of its checks,
-// each tagged HDS and each FAIL: an auth failure is never reported as compliant.
+// each FAIL (an auth failure is never reported as compliant), and carry the HDS
+// tag if and only if it is in the phase-1 list.
 func TestAllHDSChecksRegisteredAndFailOnAuthError(t *testing.T) {
 	logger.Logger = hclog.NewNullLogger()
 	session := internal.Session{Target: internal.Target{Name: "test", SubscriptionID: "sub"}, CredentialErr: errors.New("no credential")}
@@ -52,16 +76,16 @@ func TestAllHDSChecksRegisteredAndFailOnAuthError(t *testing.T) {
 		for _, cat := range c.Categories {
 			hds = hds || cat == "HDS"
 		}
-		if !hds {
-			t.Errorf("%s is not tagged HDS", c.Id)
+		if want := slices.Contains(hdsChecks, c.Id); hds != want {
+			t.Errorf("%s: HDS tag = %v, want %v", c.Id, hds, want)
 		}
 	}
-	for _, id := range hdsChecks {
+	for _, id := range append(slices.Clone(hdsChecks), phase2Checks...) {
 		if _, ok := got[id]; !ok {
-			t.Errorf("HDS check %s is not registered", id)
+			t.Errorf("check %s is not registered", id)
 		}
 	}
-	if len(got) != len(hdsChecks) {
-		t.Errorf("%d checks registered, want %d (phase 1 = HDS only)", len(got), len(hdsChecks))
+	if want := len(hdsChecks) + len(phase2Checks); len(got) != want {
+		t.Errorf("%d checks registered, want %d", len(got), want)
 	}
 }
