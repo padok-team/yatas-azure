@@ -21,7 +21,7 @@ func checkIfCannotElevateRights(checkConfig commons.CheckConfig, principals inte
 		return
 	}
 	for _, p := range principals.Items {
-		label := p.Type + " " + p.ID
+		label := p.Type + " " + p.label()
 		if len(p.ElevatingRoles) > 0 {
 			internal.Fail(&check, p.ID, label+" can elevate rights through "+strings.Join(p.ElevatingRoles, ", "))
 		} else if len(p.ConstrainedRoles) > 0 {
@@ -31,4 +31,12 @@ func checkIfCannotElevateRights(checkConfig commons.CheckConfig, principals inte
 		}
 	}
 	checkConfig.Queue <- check
+}
+
+// label is the name the report shows: "<name> (<object id>)", or the bare ID.
+func (p Principal) label() string {
+	if p.Name == "" {
+		return p.ID
+	}
+	return p.Name + " (" + p.ID + ")"
 }

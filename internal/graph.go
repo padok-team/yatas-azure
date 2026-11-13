@@ -144,3 +144,22 @@ func GraphGet[T any](ctx context.Context, g *Graph, path string) (T, error) {
 	err = json.Unmarshal(body, &out)
 	return out, err
 }
+
+type directoryObject struct {
+	DisplayName       string `json:"displayName"`
+	UserPrincipalName string `json:"userPrincipalName"`
+}
+
+// DirectoryObjectName returns a readable name for any Entra object (user,
+// group, service principal): the UPN for users, the display name otherwise.
+// It returns "" when the object has neither.
+func DirectoryObjectName(ctx context.Context, g *Graph, id string) (string, error) {
+	o, err := GraphGet[directoryObject](ctx, g, "/directoryObjects/"+id)
+	if err != nil {
+		return "", err
+	}
+	if o.UserPrincipalName != "" {
+		return o.UserPrincipalName, nil
+	}
+	return o.DisplayName, nil
+}
