@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry/v3"
 	"github.com/padok-team/yatas-azure/checks/defender"
 	"github.com/padok-team/yatas-azure/internal"
 	"github.com/padok-team/yatas/plugins/commons"
