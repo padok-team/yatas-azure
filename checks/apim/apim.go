@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement/v3"
 	"github.com/padok-team/yatas-azure/internal"
 	"github.com/padok-team/yatas/plugins/commons"
 )
